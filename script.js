@@ -20,14 +20,10 @@ const TOTAL_LUGARES = 15;
 let maxRondas = 5; // Empezamos con 5 rondas, pero puede crecer dinámicamente
 
 const container = document.getElementById("lavados-container");
-const mostrarTodosBtn = document.getElementById("mostrar-todos-btn");
 const estadisticasBtn = document.getElementById("estadisticas-btn");
-const selectorLugar = document.getElementById("selector-lugar");
 const selectorRonda = document.getElementById("selector-ronda");
-let posicionActual = 0;
 let rondaActual = 1;
 let datosGuardados = {};
-let mostrandoTodos = false;
 let mostrandoEstadisticas = false;
 
 function obtenerClaseNombre(nombre) {
@@ -100,7 +96,6 @@ function verificarYAgregarNuevaRonda() {
     // Cambiar automáticamente a la nueva ronda
     rondaActual = siguienteRonda;
     selectorRonda.value = siguienteRonda;
-    posicionActual = 0;
     
     // Mostrar mensaje de felicitación
     alert(`¡Ronda ${rondaActual - 1} completada! Se ha creado la Ronda ${rondaActual}`);
@@ -110,23 +105,75 @@ function verificarYAgregarNuevaRonda() {
   return false;
 }
 
-function encontrarProximoLugarLibre() {
+function encontrarProximoLugarLibre(ronda) {
   for (let i = 0; i < TOTAL_LUGARES; i++) {
-    const clave = obtenerClaveDatos(rondaActual, i);
-    if (!datosGuardados[clave]) {
+    const clave = obtenerClaveDatos(ronda, i);
+    if (!datosGuardados[clave] || !datosGuardados[clave].nombre) {
       return i;
     }
   }
-  return 0; // Si todos están ocupados, volver al primero
+  return -1; // No hay lugares libres
 }
 
-function poblarSelectorLugar() {
-  selectorLugar.innerHTML = '<option value="">Ir a lugar específico...</option>';
-  for (let i = 0; i < TOTAL_LUGARES; i++) {
-    const clave = obtenerClaveDatos(rondaActual, i);
-    const data = datosGuardados[clave];
-    const estado = data ? `(${data.nombre})` : '(LIBRE)';
-    selectorLugar.innerHTML += `<option value="${i}">Lugar ${i + 1} ${estado}</option>`;
+async function agregarLavadoRapido(nombre) {
+  const fechaHoy = new Date().toISOString().split('T')[0];
+  const horaActual = new Date().getHours();
+  
+  // Determinar turno según la hora (antes de las 17:00 = mediodía, después = noche)
+  const turno = horaActual < 17 ? "mediodia" : "noche";
+  
+  // Buscar lugar libre en la ronda actual
+  let lugarLibre = encontrarProximoLugarLibre(rondaActual);
+  let rondaParaUsar = rondaActual;
+  
+  // Si no hay lugar en la ronda actual, buscar en la siguiente
+  if (lugarLibre === -1) {
+    rondaParaUsar = rondaActual + 1;
+    lugarLibre = encontrarProximoLugarLibre(rondaParaUsar);
+    
+    // Si la nueva ronda no existe, crearla
+    if (rondaParaUsar > maxRondas) {
+      maxRondas = rondaParaUsar;
+      actualizarSelectorRonda();
+    }
+  }
+  
+  if (lugarLibre === -1) {
+    alert(`No hay lugares libres en las rondas ${rondaActual} y ${rondaParaUsar}`);
+    return;
+  }
+  
+  // Verificar límite de ocurrencias
+  const snapshot = await getDocs(collection(db, "lavados"));
+  const conteo = {};
+  snapshot.forEach(docSnap => {
+    const dato = docSnap.data();
+    if (dato.nombre) {
+      conteo[dato.nombre] = (conteo[dato.nombre] || 0) + 1;
+    }
+  });
+
+  if (conteo[nombre] >= MAX_OCURRENCIAS) {
+    alert(`Ya se usó "${nombre}" 5 veces. No se puede agregar más.`);
+    return;
+  }
+  
+  // Guardar el lavado
+  await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaParaUsar, lugarLibre)), {
+    ronda: rondaParaUsar,
+    posicion: lugarLibre,
+    nombre: nombre,
+    fecha: fechaHoy,
+    turno: turno // Turno determinado por la hora
+  });
+  
+  // Si se agregó a una ronda diferente, cambiar a esa ronda
+  if (rondaParaUsar !== rondaActual) {
+    rondaActual = rondaParaUsar;
+    selectorRonda.value = rondaParaUsar;
+    alert(`Se agregó ${nombre} a la Ronda ${rondaParaUsar} - Lugar ${lugarLibre + 1}`);
+  } else {
+    alert(`Se agregó ${nombre} a la Ronda ${rondaParaUsar} - Lugar ${lugarLibre + 1}`);
   }
 }
 
@@ -150,19 +197,11 @@ async function reiniciarRonda(ronda) {
       delete datosGuardados[clave];
     }
     
-    // Resetear posición actual al primer lugar libre
-    posicionActual = 0;
-    
-    // Actualizar selector de lugar
-    poblarSelectorLugar();
-    
     // Renderizar según el modo actual
     if (mostrandoEstadisticas) {
       renderEstadisticas();
-    } else if (mostrandoTodos) {
-      renderTodosLosLavados();
     } else {
-      renderRecuadro(posicionActual);
+      renderTodosLosLavados();
     }
     
     alert(`Ronda ${ronda} reiniciada exitosamente`);
@@ -171,37 +210,6 @@ async function reiniciarRonda(ronda) {
     console.error("Error al reiniciar la ronda:", error);
     alert("Error al reiniciar la ronda. Inténtalo de nuevo.");
   }
-}
-
-function renderRecuadro(pos) {
-  container.innerHTML = "";
-  container.className = ""; // Limpiar clases del contenedor
-  const clave = obtenerClaveDatos(rondaActual, pos);
-  const data = datosGuardados[clave] || {};
-  const div = document.createElement("div");
-  
-  // Aplicar color si hay datos guardados
-  const claseColor = data.nombre ? obtenerClaseNombre(data.nombre) : "";
-  div.className = `select-box ${claseColor}`;
-  
-  div.innerHTML = `
-    <label>Ronda ${rondaActual} - Lugar ${pos + 1}</label>
-    <select class="nombre-select">
-      <option value="">Elegir nombre...</option>
-      ${OPCIONES.map(o => `<option value="${o}" ${data.nombre === o ? "selected" : ""}>${o}</option>`).join("")}
-    </select>
-    <div class="fecha-container">
-      <input type="date" class="fecha-input" value="${data.fecha || ""}" />
-      <button type="button" class="hoy-btn" onclick="setHoy(this)">Hoy</button>
-    </div>
-    <select class="turno-select">
-      <option value="">Elegir turno...</option>
-      <option value="mañana" ${data.turno === "mañana" ? "selected" : ""}>Mañana</option>
-      <option value="tarde" ${data.turno === "tarde" ? "selected" : ""}>Tarde</option>
-    </select>
-    <button class="guardar-btn">Guardar</button>
-  `;
-  container.appendChild(div);
 }
 
 function calcularEstadisticas() {
@@ -264,6 +272,91 @@ function renderEstadisticas() {
   }
 }
 
+async function editarLavado(posicion) {
+  const clave = obtenerClaveDatos(rondaActual, posicion);
+  const data = datosGuardados[clave];
+  
+  if (!data || !data.nombre) {
+    alert("No hay datos para editar en esta posición");
+    return;
+  }
+  
+  // Crear formulario de edición
+  const nuevoNombre = prompt("Nombre:", data.nombre);
+  if (nuevoNombre === null) return; // Usuario canceló
+  
+  const nuevaFecha = prompt("Fecha (YYYY-MM-DD):", data.fecha);
+  if (nuevaFecha === null) return; // Usuario canceló
+  
+  const nuevoTurno = prompt("Turno (mediodia/noche):", data.turno);
+  if (nuevoTurno === null) return; // Usuario canceló
+  
+  // Validaciones
+  if (!nuevoNombre || !nuevaFecha || !nuevoTurno) {
+    alert("Todos los campos son obligatorios");
+    return;
+  }
+  
+  if (!OPCIONES.includes(nuevoNombre)) {
+    alert("El nombre debe ser: " + OPCIONES.join(", "));
+    return;
+  }
+  
+  if (!["mediodia", "noche"].includes(nuevoTurno)) {
+    alert("El turno debe ser 'mediodia' o 'noche'");
+    return;
+  }
+  
+  // Verificar límite de ocurrencias (excluyendo el actual)
+  const snapshot = await getDocs(collection(db, "lavados"));
+  const conteo = {};
+  snapshot.forEach(docSnap => {
+    const dato = docSnap.data();
+    if (dato.nombre && dato.nombre !== data.nombre) {
+      conteo[dato.nombre] = (conteo[dato.nombre] || 0) + 1;
+    }
+  });
+
+  if ((conteo[nuevoNombre] || 0) >= MAX_OCURRENCIAS) {
+    alert(`Ya se usó "${nuevoNombre}" 5 veces. Elegí otro nombre.`);
+    return;
+  }
+  
+  // Actualizar en Firebase
+  await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaActual, posicion)), {
+    ronda: rondaActual,
+    posicion: posicion,
+    nombre: nuevoNombre,
+    fecha: nuevaFecha,
+    turno: nuevoTurno
+  });
+  
+  alert("Lavado editado exitosamente");
+}
+
+async function borrarLavado(posicion) {
+  const clave = obtenerClaveDatos(rondaActual, posicion);
+  const data = datosGuardados[clave];
+  
+  if (!data || !data.nombre) {
+    alert("No hay datos para borrar en esta posición");
+    return;
+  }
+  
+  if (confirm(`¿Estás seguro de que quieres borrar el lavado de ${data.nombre} en el Lugar ${posicion + 1}?`)) {
+    // Borrar de Firebase
+    await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaActual, posicion)), {
+      ronda: rondaActual,
+      posicion: posicion,
+      nombre: "",
+      fecha: "",
+      turno: ""
+    });
+    
+    alert("Lavado borrado exitosamente");
+  }
+}
+
 function renderTodosLosLavados() {
   container.innerHTML = "";
   container.className = "vista-todas"; // Agregar clase para vista compacta
@@ -272,40 +365,63 @@ function renderTodosLosLavados() {
     const clave = obtenerClaveDatos(rondaActual, i);
     const data = datosGuardados[clave] || {};
     const div = document.createElement("div");
-    div.className = "select-box";
     
     if (data.nombre) {
-      // Lugar ocupado - mostrar información con color
+      // Lugar ocupado - mostrar información con color (inicialmente colapsado)
       const claseColor = obtenerClaseNombre(data.nombre);
-      div.className = `select-box ${claseColor}`;
+      div.className = `select-box collapsed ${claseColor}`;
       div.innerHTML = `
-        <label>Ronda ${rondaActual} - Lugar ${i + 1}</label>
+        <label>
+          Ronda ${rondaActual} - Lugar ${i + 1}
+          <span class="expand-indicator">▼</span>
+        </label>
+        <div class="estado-resumen">${data.nombre}</div>
         <div class="info-completa">
           <p><strong>${data.nombre}</strong></p>
           <p>${data.fecha}</p>
           <p>${data.turno}</p>
+          <div class="botones-accion">
+            <button class="editar-btn" data-pos="${i}">Editar</button>
+            <button class="borrar-btn" data-pos="${i}">Borrar</button>
+          </div>
         </div>
       `;
     } else {
-      // Lugar libre - mostrar formulario
+      // Lugar libre - mostrar formulario (inicialmente colapsado)
+      div.className = "select-box collapsed";
       div.innerHTML = `
-        <label>Ronda ${rondaActual} - Lugar ${i + 1} - LIBRE</label>
-        <select class="nombre-select" data-pos="${i}">
-          <option value="">Elegir nombre...</option>
-          ${OPCIONES.map(o => `<option value="${o}">${o}</option>`).join("")}
-        </select>
-        <div class="fecha-container">
-          <input type="date" class="fecha-input" data-pos="${i}" />
-          <button type="button" class="hoy-btn" onclick="setHoy(this)">Hoy</button>
+        <label>
+          Ronda ${rondaActual} - Lugar ${i + 1}
+          <span class="expand-indicator">▼</span>
+        </label>
+        <div class="estado-resumen">LIBRE</div>
+        <div class="formulario-contenido">
+          <select class="nombre-select" data-pos="${i}">
+            <option value="">Elegir nombre...</option>
+            ${OPCIONES.map(o => `<option value="${o}">${o}</option>`).join("")}
+          </select>
+          <div class="fecha-container">
+            <input type="date" class="fecha-input" data-pos="${i}" />
+            <button type="button" class="hoy-btn" onclick="setHoy(this)">Hoy</button>
+          </div>
+          <select class="turno-select" data-pos="${i}">
+            <option value="">Elegir turno...</option>
+            <option value="mediodia">Mediodía</option>
+            <option value="noche">Noche</option>
+          </select>
+          <button class="guardar-btn" data-pos="${i}">Guardar</button>
         </div>
-        <select class="turno-select" data-pos="${i}">
-          <option value="">Elegir turno...</option>
-          <option value="mañana">Mañana</option>
-          <option value="tarde">Tarde</option>
-        </select>
-        <button class="guardar-btn" data-pos="${i}">Guardar</button>
       `;
     }
+    
+    // Agregar event listener para toggle
+    div.addEventListener('click', function(e) {
+      // No toggle si se hace clic en un elemento del formulario
+      if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') {
+        return;
+      }
+      this.classList.toggle('collapsed');
+    });
     
     container.appendChild(div);
   }
@@ -319,9 +435,7 @@ container.addEventListener("click", async function(e) {
     const turno = div.querySelector(".turno-select").value;
     
     // Obtener la posición del botón
-    const posicion = mostrandoTodos ? 
-      parseInt(e.target.getAttribute("data-pos")) : 
-      posicionActual;
+    const posicion = parseInt(e.target.getAttribute("data-pos"));
 
     if (!nombre || !fecha || !turno) {
       alert("Completá todos los campos.");
@@ -351,39 +465,32 @@ container.addEventListener("click", async function(e) {
 
     // Verificar si se completó la ronda y agregar nueva si es necesario
     setTimeout(() => {
-      const nuevaRondaCreada = verificarYAgregarNuevaRonda();
-      
-      if (!mostrandoTodos && !nuevaRondaCreada) {
-        // Solo avanzar al siguiente lugar si no se creó una nueva ronda
-        if (posicionActual < TOTAL_LUGARES - 1) {
-          posicionActual++;
-          renderRecuadro(posicionActual);
-        } else {
-          alert("¡Todos los lugares de esta ronda completados!");
-        }
-      }
+      verificarYAgregarNuevaRonda();
     }, 500); // Pequeño delay para asegurar que los datos se actualicen
+  }
+  
+  if (e.target.classList.contains("editar-btn")) {
+    const posicion = parseInt(e.target.getAttribute("data-pos"));
+    await editarLavado(posicion);
+  }
+  
+  if (e.target.classList.contains("borrar-btn")) {
+    const posicion = parseInt(e.target.getAttribute("data-pos"));
+    await borrarLavado(posicion);
   }
 });
 
-// Event listener para el botón "Ver Todos los Lavados"
-mostrarTodosBtn.addEventListener("click", function() {
-  if (mostrandoEstadisticas) {
-    // Si estamos en estadísticas, volver al modo normal
-    mostrandoEstadisticas = false;
-    estadisticasBtn.textContent = "Ver Estadísticas";
-    container.className = "";
-  }
-  
-  mostrandoTodos = !mostrandoTodos;
-  
-  if (mostrandoTodos) {
-    mostrarTodosBtn.textContent = "Vista Individual";
-    renderTodosLosLavados();
-  } else {
-    mostrarTodosBtn.textContent = "Ver Todos los Lavados";
-    renderRecuadro(posicionActual);
-  }
+// Event listeners para los botones de nombres rápidos
+document.getElementById("btn-juan").addEventListener("click", function() {
+  agregarLavadoRapido("Juan");
+});
+
+document.getElementById("btn-delfina").addEventListener("click", function() {
+  agregarLavadoRapido("Delfina");
+});
+
+document.getElementById("btn-felicitas").addEventListener("click", function() {
+  agregarLavadoRapido("Felicitas");
 });
 
 // Event listener para el botón "Ver Estadísticas"
@@ -393,26 +500,11 @@ estadisticasBtn.addEventListener("click", function() {
   if (mostrandoEstadisticas) {
     // Entrar en modo estadísticas
     estadisticasBtn.textContent = "Volver";
-    mostrarTodosBtn.textContent = "Ver Todos los Lavados";
-    mostrandoTodos = false;
     renderEstadisticas();
   } else {
     // Salir del modo estadísticas
     estadisticasBtn.textContent = "Ver Estadísticas";
-    container.className = "";
-    renderRecuadro(posicionActual);
-  }
-});
-
-// Event listener para el selector de lugar
-selectorLugar.addEventListener("change", function() {
-  const lugarSeleccionado = parseInt(this.value);
-  if (!isNaN(lugarSeleccionado)) {
-    posicionActual = lugarSeleccionado;
-    if (!mostrandoTodos) {
-      renderRecuadro(posicionActual);
-    }
-    this.value = ""; // Resetear el selector
+    renderTodosLosLavados();
   }
 });
 
@@ -421,18 +513,12 @@ selectorRonda.addEventListener("change", function() {
   const nuevaRonda = parseInt(this.value);
   if (!isNaN(nuevaRonda)) {
     rondaActual = nuevaRonda;
-    posicionActual = encontrarProximoLugarLibre();
-    
-    // Actualizar selector de lugar
-    poblarSelectorLugar();
     
     // Renderizar según el modo actual
     if (mostrandoEstadisticas) {
       renderEstadisticas();
-    } else if (mostrandoTodos) {
-      renderTodosLosLavados();
     } else {
-      renderRecuadro(posicionActual);
+      renderTodosLosLavados();
     }
   }
 });
@@ -461,21 +547,11 @@ function actualizarUI() {
     // Actualizar selector de ronda
     actualizarSelectorRonda();
     
-    // Actualizar selector de lugar
-    poblarSelectorLugar();
-    
-    // Si es la primera carga, ir al próximo lugar libre
-    if (posicionActual === 0 && Object.keys(datosGuardados).length > 0) {
-      posicionActual = encontrarProximoLugarLibre();
-    }
-    
-    // Renderizar según el modo actual
+    // Renderizar según el modo actual (siempre mostrar todos los lavados por defecto)
     if (mostrandoEstadisticas) {
       renderEstadisticas();
-    } else if (mostrandoTodos) {
-      renderTodosLosLavados();
     } else {
-      renderRecuadro(posicionActual);
+      renderTodosLosLavados();
     }
   });
 }
