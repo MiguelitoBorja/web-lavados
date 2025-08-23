@@ -122,14 +122,38 @@ async function agregarLavadoRapido(nombre) {
   // Determinar turno según la hora (antes de las 17:00 = mediodía, después = noche)
   const turno = horaActual < 17 ? "mediodia" : "noche";
   
+  // Verificar límite de ocurrencias en la ronda actual
+  const snapshot = await getDocs(collection(db, "lavados"));
+  const conteoRondaActual = {};
+  snapshot.forEach(docSnap => {
+    const dato = docSnap.data();
+    if (dato.nombre && dato.ronda === rondaActual) {
+      conteoRondaActual[dato.nombre] = (conteoRondaActual[dato.nombre] || 0) + 1;
+    }
+  });
+
   // Buscar lugar libre en la ronda actual
   let lugarLibre = encontrarProximoLugarLibre(rondaActual);
   let rondaParaUsar = rondaActual;
-  
-  // Si no hay lugar en la ronda actual, buscar en la siguiente
-  if (lugarLibre === -1) {
+  let razonCambioRonda = "";
+
+  // Si ya tiene 5 lavados en la ronda actual, pasar automáticamente a la siguiente
+  if (conteoRondaActual[nombre] >= MAX_OCURRENCIAS) {
     rondaParaUsar = rondaActual + 1;
     lugarLibre = encontrarProximoLugarLibre(rondaParaUsar);
+    razonCambioRonda = "limite_lavados";
+    
+    // Si la nueva ronda no existe, crearla
+    if (rondaParaUsar > maxRondas) {
+      maxRondas = rondaParaUsar;
+      actualizarSelectorRonda();
+    }
+  }
+  // Si no hay lugar en la ronda actual, buscar en la siguiente
+  else if (lugarLibre === -1) {
+    rondaParaUsar = rondaActual + 1;
+    lugarLibre = encontrarProximoLugarLibre(rondaParaUsar);
+    razonCambioRonda = "ronda_completa";
     
     // Si la nueva ronda no existe, crearla
     if (rondaParaUsar > maxRondas) {
@@ -142,20 +166,20 @@ async function agregarLavadoRapido(nombre) {
     alert(`No hay lugares libres en las rondas ${rondaActual} y ${rondaParaUsar}`);
     return;
   }
-  
-  // Verificar límite de ocurrencias
-  const snapshot = await getDocs(collection(db, "lavados"));
-  const conteo = {};
-  snapshot.forEach(docSnap => {
-    const dato = docSnap.data();
-    if (dato.nombre) {
-      conteo[dato.nombre] = (conteo[dato.nombre] || 0) + 1;
+  if (conteoRondaActual[nombre] >= MAX_OCURRENCIAS) {
+    rondaParaUsar = rondaActual + 1;
+    lugarLibre = encontrarProximoLugarLibre(rondaParaUsar);
+    
+    // Si la nueva ronda no existe, crearla
+    if (rondaParaUsar > maxRondas) {
+      maxRondas = rondaParaUsar;
+      actualizarSelectorRonda();
     }
-  });
-
-  if (conteo[nombre] >= MAX_OCURRENCIAS) {
-    alert(`Ya se usó "${nombre}" 5 veces. No se puede agregar más.`);
-    return;
+    
+    if (lugarLibre === -1) {
+      alert(`No hay lugares libres en la ronda ${rondaParaUsar}`);
+      return;
+    }
   }
   
   // Guardar el lavado
@@ -169,12 +193,23 @@ async function agregarLavadoRapido(nombre) {
   
   // Si se agregó a una ronda diferente, cambiar a esa ronda
   if (rondaParaUsar !== rondaActual) {
+    const rondaAnterior = rondaActual;
     rondaActual = rondaParaUsar;
     selectorRonda.value = rondaParaUsar;
-    alert(`Se agregó ${nombre} a la Ronda ${rondaParaUsar} - Lugar ${lugarLibre + 1}`);
+    
+    // Verificar si fue por límite de lavados o por ronda completa
+    if (razonCambioRonda === "limite_lavados") {
+      alert(`${nombre} ya completó 5 lavados en la Ronda ${rondaAnterior}. Se agregó automáticamente a la Ronda ${rondaParaUsar} - Lugar ${lugarLibre + 1}`);
+    } else {
+      alert(`Ronda ${rondaAnterior} completa. Se agregó ${nombre} a la Ronda ${rondaParaUsar} - Lugar ${lugarLibre + 1}`);
+    }
   } else {
     alert(`Se agregó ${nombre} a la Ronda ${rondaParaUsar} - Lugar ${lugarLibre + 1}`);
   }
+  
+  // Actualizar la vista para mostrar los cambios
+  await cargarDatos();
+  renderTodosLosLavados();
 }
 
 async function reiniciarRonda(ronda) {
