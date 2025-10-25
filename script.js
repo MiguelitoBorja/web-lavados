@@ -66,20 +66,31 @@ function actualizarSelectorRonda() {
   selectorRonda.innerHTML = '';
   
   const rondasDisponibles = obtenerRondasDisponibles();
-  rondasDisponibles.forEach(ronda => {
-    const esCompleta = verificarRondaCompleta(ronda);
-    const texto = esCompleta ? `Ronda ${ronda} - FINALIZADA` : `Ronda ${ronda}`;
+  
+  // Solo mostrar rondas activas (no finalizadas)
+  const rondasActivas = rondasDisponibles.filter(ronda => !verificarRondaCompleta(ronda));
+  
+  // Si no hay rondas activas, mostrar la última ronda
+  if (rondasActivas.length === 0) {
+    rondasActivas.push(maxRondas);
+  }
+  
+  rondasActivas.forEach(ronda => {
     const option = document.createElement('option');
     option.value = ronda;
-    option.textContent = texto;
-    option.style.color = esCompleta ? '#28a745' : '#2d3748';
-    option.style.fontWeight = esCompleta ? 'bold' : 'normal';
+    option.textContent = `Ronda ${ronda}`;
+    option.style.color = '#2d3748';
+    option.style.fontWeight = '600';
     selectorRonda.appendChild(option);
   });
   
-  // Mantener la ronda seleccionada si es posible
-  if (rondaSeleccionada && rondaSeleccionada <= maxRondas) {
+  // Mantener la ronda seleccionada si es posible y está activa
+  if (rondaSeleccionada && rondasActivas.includes(parseInt(rondaSeleccionada))) {
     selectorRonda.value = rondaSeleccionada;
+  } else {
+    // Si no, seleccionar la primera ronda activa
+    rondaActual = rondasActivas[0];
+    selectorRonda.value = rondasActivas[0];
   }
 }
 
@@ -97,8 +108,8 @@ function verificarYAgregarNuevaRonda() {
     rondaActual = siguienteRonda;
     selectorRonda.value = siguienteRonda;
     
-    // Mostrar mensaje de felicitación
-    alert(`¡Ronda ${rondaActual - 1} completada! Se ha creado la Ronda ${rondaActual}`);
+    // Mostrar mensaje de felicitación más elegante
+    mostrarNotificacionRonda(`¡Ronda ${rondaActual - 1} completada! Se ha creado la Ronda ${rondaActual}`);
     
     return true;
   }
@@ -603,6 +614,33 @@ window.setHoy = function(boton) {
   setTimeout(() => {
     boton.style.transform = 'scale(1)';
   }, 150);
+}
+
+// Función para mostrar notificaciones elegantes
+function mostrarNotificacionRonda(mensaje) {
+  // Crear elemento de notificación
+  const notificacion = document.createElement('div');
+  notificacion.className = 'notificacion-ronda';
+  notificacion.innerHTML = `
+    <div class="notificacion-icono">🎉</div>
+    <div class="notificacion-mensaje">${mensaje}</div>
+  `;
+  
+  // Agregar al body
+  document.body.appendChild(notificacion);
+  
+  // Mostrar con animación
+  setTimeout(() => {
+    notificacion.classList.add('mostrar');
+  }, 100);
+  
+  // Ocultar después de 4 segundos
+  setTimeout(() => {
+    notificacion.classList.remove('mostrar');
+    setTimeout(() => {
+      document.body.removeChild(notificacion);
+    }, 500);
+  }, 4000);
 }
 
 // Inicializar el selector de ronda al cargar
