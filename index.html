@@ -6,6 +6,7 @@
     <title>Anotador de Lavados</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-borderless/borderless.css">
     <link rel="stylesheet" href="style.css"/>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
 <body>
     
@@ -14,11 +15,14 @@
     </div>
 
     <div class="header">
-        <div class="logo-container">
-            <div class="logo-icon">🧽</div>
+    <div class="logo-container">
+        <div class="logo-bg">
+            <i class="ph-fill ph-sparkle"></i>
         </div>
-        <h1>Anotador de Lavados</h1>
     </div>
+    <h1>Lavados Tracker</h1>
+    <p class="subtitle">Gestiona tu ronda fácilmente</p>
+</div>
     
     <div class="controles">
         <select id="selector-ronda" class="selector-lugar">
@@ -27,11 +31,17 @@
         <button id="reiniciar-ronda-btn" class="reiniciar-ronda-btn">Reiniciar Ronda</button>
     </div>
     
-    <div class="botones-nombres">
-        <button id="btn-juan" class="boton-nombre nombre-juan" data-nombre="Juan">Juan</button>
-        <button id="btn-delfina" class="boton-nombre nombre-delfina" data-nombre="Delfina">Delfina</button>
-        <button id="btn-felicitas" class="boton-nombre nombre-felicitas" data-nombre="Felicitas">Felicitas</button>
-    </div>
+   <div class="botones-nombres">
+    <button id="btn-juan" class="boton-nombre nombre-juan" data-nombre="Juan">
+        <i class="ph-bold ph-user"></i> Juan
+    </button>
+    <button id="btn-delfina" class="boton-nombre nombre-delfina" data-nombre="Delfina">
+        <i class="ph-bold ph-user"></i> Delfina
+    </button>
+    <button id="btn-felicitas" class="boton-nombre nombre-felicitas" data-nombre="Felicitas">
+        <i class="ph-bold ph-user"></i> Felicitas
+    </button>
+</div>
     
     <div id="lavados-container"></div>
 
