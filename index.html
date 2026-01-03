@@ -2,25 +2,27 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
     <title>Anotador de Lavados</title>
-    <link rel="icon" href="logo.png" type="image/png">
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-borderless/borderless.css">
     <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
+    
+    <div id="loader" class="loader-overlay">
+        <div class="spinner"></div>
+    </div>
+
     <div class="header">
         <div class="logo-container">
             <div class="logo-icon">🧽</div>
         </div>
         <h1>Anotador de Lavados</h1>
-    
     </div>
     
     <div class="controles">
         <select id="selector-ronda" class="selector-lugar">
-            <!-- Las opciones se generarán dinámicamente -->
-        </select>
+            </select>
         <button id="estadisticas-btn" class="estadisticas-btn">Ver Estadísticas</button>
         <button id="reiniciar-ronda-btn" class="reiniciar-ronda-btn">Reiniciar Ronda</button>
     </div>
@@ -33,9 +35,9 @@
     
     <div id="lavados-container"></div>
 
-<script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js"></script>
     <script type="module" src="script.js"></script>
 
 </body>
