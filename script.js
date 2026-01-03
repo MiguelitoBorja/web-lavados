@@ -375,6 +375,7 @@ function renderTodosLosLavados() {
         });
         container.appendChild(div);
     }
+    actualizarDashboard();
 }
 
 container.addEventListener("click", async function(e) {
@@ -430,7 +431,104 @@ selectorRonda.addEventListener("change", function() {
 });
 
 document.getElementById("reiniciar-ronda-btn").addEventListener("click", () => reiniciarRonda(rondaActual));
+// Navegación con flechas
+document.getElementById("btn-prev-ronda").addEventListener("click", () => {
+    if (rondaActual > 1) {
+        rondaActual--;
+        selectorRonda.value = rondaActual;
+        // Si estamos en estadísticas, recargamos estadísticas, si no, lavados
+        mostrandoEstadisticas ? renderEstadisticas() : renderTodosLosLavados();
+    }
+});
 
+document.getElementById("btn-next-ronda").addEventListener("click", () => {
+    if (rondaActual < maxRondas) {
+        rondaActual++;
+        selectorRonda.value = rondaActual;
+        mostrandoEstadisticas ? renderEstadisticas() : renderTodosLosLavados();
+    } else {
+        // Opcional: Crear nueva ronda si intentan avanzar más allá
+        Swal.fire({
+            title: '¿Crear nueva ronda?',
+            text: `Estás en la última ronda (${rondaActual}). ¿Quieres avanzar a la ${rondaActual + 1}?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, crear'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                maxRondas++;
+                rondaActual++;
+                actualizarSelectorRonda(); // Asegúrate de llamar a esto para actualizar el <select>
+                selectorRonda.value = rondaActual;
+                renderTodosLosLavados();
+            }
+        });
+    }
+});
+function actualizarDashboard() {
+    // 1. Calcular ocupación total de la ronda
+    let ocupados = 0;
+    let conteoPorPersona = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
+    
+    for (let i = 0; i < TOTAL_LUGARES; i++) {
+        const clave = obtenerClaveDatos(rondaActual, i);
+        if (datosGuardados[clave] && datosGuardados[clave].nombre) {
+            ocupados++;
+            conteoPorPersona[datosGuardados[clave].nombre]++;
+        }
+    }
+
+    // Actualizar Barra de Progreso
+    const porcentaje = Math.round((ocupados / TOTAL_LUGARES) * 100);
+    document.getElementById('barra-progreso').style.width = `${porcentaje}%`;
+    document.getElementById('lbl-porcentaje').innerText = `${porcentaje}%`;
+    document.getElementById('lbl-ronda-actual').innerText = rondaActual;
+
+    // Actualizar Avatars (Círculos)
+    const containerStats = document.getElementById('stats-container');
+    containerStats.innerHTML = '';
+    
+    // Convertir objeto a array para iterar
+    Object.keys(conteoPorPersona).forEach(nombre => {
+        const cantidad = conteoPorPersona[nombre];
+        const esCompleto = cantidad >= 5;
+        const claseColor = `is-${nombre.toLowerCase()}`;
+        const claseCompleto = esCompleto ? 'completed' : '';
+        
+        containerStats.innerHTML += `
+            <div class="stat-item ${claseColor} ${claseCompleto}">
+                <div class="stat-circle">${cantidad}</div>
+                <div class="stat-name">${nombre}</div>
+            </div>
+        `;
+    });
+
+    // Calcular "A quién le toca" (Lógica: Quien tenga menos lavados y no haya llegado a 5)
+    // Convertimos a array: [{nombre: 'Juan', cant: 2}, ...]
+    let candidatos = Object.keys(conteoPorPersona).map(key => {
+        return { nombre: key, cantidad: conteoPorPersona[key] };
+    });
+
+    // Filtramos los que ya terminaron (5 lavados)
+    candidatos = candidatos.filter(c => c.cantidad < 5);
+
+    // Ordenamos de menor a mayor cantidad
+    candidatos.sort((a, b) => a.cantidad - b.cantidad);
+
+    const banner = document.querySelector('#banner-turno span');
+    if (candidatos.length > 0) {
+        // Si hay empate en el mínimo, mostramos al primero (o podrías mostrar 'Cualquiera')
+        banner.innerText = candidatos[0].nombre;
+        
+        // Poner color al texto según quién sea
+        if(candidatos[0].nombre === 'Juan') banner.style.color = 'var(--color-juan)';
+        else if(candidatos[0].nombre === 'Delfina') banner.style.color = 'var(--color-delfina)';
+        else banner.style.color = 'var(--color-felicitas)';
+    } else {
+        banner.innerText = "¡Ronda Completa!";
+        banner.style.color = '#00E676';
+    }
+}
 // LISTENER EN TIEMPO REAL
 onSnapshot(collection(db, "lavados"), (snapshot) => {
     datosGuardados = {};

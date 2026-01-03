@@ -24,12 +24,53 @@
     <p class="subtitle">Gestiona tu ronda fácilmente</p>
 </div>
     
-    <div class="controles">
-        <select id="selector-ronda" class="selector-lugar">
-            </select>
-        <button id="estadisticas-btn" class="estadisticas-btn">Ver Estadísticas</button>
-        <button id="reiniciar-ronda-btn" class="reiniciar-ronda-btn">Reiniciar Ronda</button>
+    <div class="dashboard-panel">
+    
+    <div class="progreso-container">
+        <div class="progreso-info">
+            <span>Progreso Ronda <span id="lbl-ronda-actual">1</span></span>
+            <span id="lbl-porcentaje">0%</span>
+        </div>
+        <div class="barra-fondo">
+            <div id="barra-progreso" class="barra-relleno" style="width: 0%"></div>
+        </div>
     </div>
+
+    <div class="stats-personas" id="stats-container">
+        </div>
+
+    <div class="turno-banner" id="banner-turno">
+        <i class="ph-fill ph-hand-pointing"></i> Le toca a: <span>Nadie</span>
+    </div>
+</div>
+
+<div class="navegacion-ronda">
+    <button id="btn-prev-ronda" class="nav-arrow"><i class="ph-bold ph-caret-left"></i></button>
+    <div class="ronda-selector-wrapper">
+        <select id="selector-ronda" class="selector-moderno">
+            </select>
+    </div>
+    <button id="btn-next-ronda" class="nav-arrow"><i class="ph-bold ph-caret-right"></i></button>
+</div>
+
+<div class="botones-nombres">
+    <button id="btn-juan" class="boton-nombre nombre-juan" data-nombre="Juan">
+        <i class="ph-bold ph-plus"></i> Juan
+    </button>
+    <button id="btn-delfina" class="boton-nombre nombre-delfina" data-nombre="Delfina">
+        <i class="ph-bold ph-plus"></i> Delfi
+    </button>
+    <button id="btn-felicitas" class="boton-nombre nombre-felicitas" data-nombre="Felicitas">
+        <i class="ph-bold ph-plus"></i> Feli
+    </button>
+</div>
+
+<div class="acciones-extra">
+    <button id="estadisticas-btn" class="btn-secundario">Historial</button>
+    <button id="reiniciar-ronda-btn" class="btn-danger">Reiniciar</button>
+</div>
+
+<div id="lavados-container"></div>
     
    <div class="botones-nombres">
     <button id="btn-juan" class="boton-nombre nombre-juan" data-nombre="Juan">

@@ -241,7 +241,166 @@ select {
     gap: 10px;
     margin: 10px 0;
 }
+/* --- DASHBOARD SUPERIOR --- */
+.dashboard-panel {
+    background: linear-gradient(180deg, rgba(30, 30, 40, 0.8) 0%, rgba(30, 30, 40, 0.4) 100%);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 20px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
 
+/* Barra de Progreso */
+.progreso-container { margin-bottom: 20px; }
+.progreso-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+.barra-fondo {
+    height: 8px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.barra-relleno {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--primary));
+    border-radius: 10px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Stats Personas (Circulitos) */
+.stats-personas {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+.stat-circle {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: white;
+    margin-bottom: 6px;
+    border: 3px solid rgba(255,255,255,0.1);
+    transition: all 0.3s;
+    background: #2a2a35; /* Fondo por defecto */
+}
+/* Colores de bordes según persona */
+.stat-item.is-juan .stat-circle { border-color: var(--color-juan); box-shadow: 0 0 15px rgba(255, 75, 75, 0.2); }
+.stat-item.is-delfina .stat-circle { border-color: var(--color-delfina); box-shadow: 0 0 15px rgba(75, 123, 255, 0.2); }
+.stat-item.is-felicitas .stat-circle { border-color: var(--color-felicitas); box-shadow: 0 0 15px rgba(255, 159, 28, 0.2); }
+
+/* Si completó los 5 */
+.stat-item.completed .stat-circle { 
+    background: white; 
+    color: #000; 
+    transform: scale(1.1);
+}
+.stat-item.completed::after {
+    content: '✓';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #00E676;
+    color: #000;
+    font-size: 10px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+.stat-name { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
+
+/* Banner de Turno */
+.turno-banner {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 10px;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.turno-banner span { font-weight: 800; color: var(--accent); }
+
+/* Navegación Rondas */
+.navegacion-ronda {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.ronda-selector-wrapper { flex: 1; }
+.selector-moderno {
+    text-align: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+}
+.nav-arrow {
+    background: var(--glass-highlight);
+    border: none;
+    color: white;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+.nav-arrow:active { transform: scale(0.9); }
+
+/* Botones Extra */
+.acciones-extra {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.btn-secundario {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    padding: 10px;
+    border-radius: 12px;
+    cursor: pointer;
+}
+.btn-danger {
+    flex: 1;
+    background: rgba(255, 75, 75, 0.1);
+    border: 1px solid rgba(255, 75, 75, 0.3);
+    color: #ff6b6b;
+    padding: 10px;
+    border-radius: 12px;
+    cursor: pointer;
+}
 .hoy-btn {
     background: var(--primary);
     color: white;
