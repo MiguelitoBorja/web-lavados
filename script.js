@@ -466,64 +466,108 @@ document.getElementById("btn-next-ronda").addEventListener("click", () => {
     }
 });
 function actualizarDashboard() {
-    // 1. Calcular ocupación total de la ronda
+    // 1. Calcular ocupación y conteos de la ronda ACTUAL
     let ocupados = 0;
-    let conteoPorPersona = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
+    let conteoRondaActual = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
     
-    for (let i = 0; i < TOTAL_LUGARES; i++) {
-        const clave = obtenerClaveDatos(rondaActual, i);
-        if (datosGuardados[clave] && datosGuardados[clave].nombre) {
-            ocupados++;
-            conteoPorPersona[datosGuardados[clave].nombre]++;
+    // 2. Calcular el "Último Lavado Global" (Historial de TODAS las rondas)
+    // Usaremos un puntaje: (Ronda * 100) + Posición.
+    // Cuanto más alto el puntaje, más reciente fue el lavado.
+    let ultimoLavadoGlobal = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
+
+    // Analizamos TODOS los datos guardados (historial completo)
+    Object.values(datosGuardados).forEach(dato => {
+        if (dato.nombre) {
+            // Actualizar historial global
+            const puntajeRecencia = (dato.ronda * 100) + dato.posicion;
+            if (puntajeRecencia > ultimoLavadoGlobal[dato.nombre]) {
+                ultimoLavadoGlobal[dato.nombre] = puntajeRecencia;
+            }
+
+            // Actualizar conteo solo si es de esta ronda
+            if (dato.ronda === rondaActual) {
+                ocupados++;
+                conteoRondaActual[dato.nombre]++;
+            }
         }
+    });
+
+    // --- A. Actualizar Barra de Progreso ---
+    const porcentaje = Math.round((ocupados / TOTAL_LUGARES) * 100);
+    const barra = document.getElementById('barra-progreso');
+    if(barra) barra.style.width = `${porcentaje}%`;
+    
+    const lblPorcentaje = document.getElementById('lbl-porcentaje');
+    if(lblPorcentaje) lblPorcentaje.innerText = `${porcentaje}%`;
+    
+    const lblRonda = document.getElementById('lbl-ronda-actual');
+    if(lblRonda) lblRonda.innerText = rondaActual;
+
+    // --- B. Actualizar Avatars (Círculos) ---
+    const containerStats = document.getElementById('stats-container');
+    if (containerStats) {
+        containerStats.innerHTML = '';
+        Object.keys(conteoRondaActual).forEach(nombre => {
+            const cantidad = conteoRondaActual[nombre];
+            const esCompleto = cantidad >= 5;
+            const claseColor = `is-${nombre.toLowerCase()}`;
+            const claseCompleto = esCompleto ? 'completed' : '';
+            
+            containerStats.innerHTML += `
+                <div class="stat-item ${claseColor} ${claseCompleto}">
+                    <div class="stat-circle">${cantidad}</div>
+                    <div class="stat-name">${nombre}</div>
+                </div>
+            `;
+        });
     }
 
-    // Actualizar Barra de Progreso
-    const porcentaje = Math.round((ocupados / TOTAL_LUGARES) * 100);
-    document.getElementById('barra-progreso').style.width = `${porcentaje}%`;
-    document.getElementById('lbl-porcentaje').innerText = `${porcentaje}%`;
-    document.getElementById('lbl-ronda-actual').innerText = rondaActual;
-
-    // Actualizar Avatars (Círculos)
-    const containerStats = document.getElementById('stats-container');
-    containerStats.innerHTML = '';
+    // --- C. Lógica de Decisión (A quién le toca) ---
     
-    // Convertir objeto a array para iterar
-    Object.keys(conteoPorPersona).forEach(nombre => {
-        const cantidad = conteoPorPersona[nombre];
-        const esCompleto = cantidad >= 5;
-        const claseColor = `is-${nombre.toLowerCase()}`;
-        const claseCompleto = esCompleto ? 'completed' : '';
+    // 1. Crear lista de candidatos
+    let candidatos = Object.keys(conteoRondaActual).map(nombre => {
+        return { 
+            nombre: nombre, 
+            cantidadActual: conteoRondaActual[nombre],
+            ultimaVezVisto: ultimoLavadoGlobal[nombre]
+        };
+    });
+
+    // 2. Filtrar los que ya terminaron (5 lavados)
+    candidatos = candidatos.filter(c => c.cantidadActual < 5);
+
+    // 3. ORDENAR (La parte mágica)
+    candidatos.sort((a, b) => {
+        // PRIMERO: Por cantidad en esta ronda (Menos es mejor)
+        if (a.cantidadActual !== b.cantidadActual) {
+            return a.cantidadActual - b.cantidadActual;
+        }
         
-        containerStats.innerHTML += `
-            <div class="stat-item ${claseColor} ${claseCompleto}">
-                <div class="stat-circle">${cantidad}</div>
-                <div class="stat-name">${nombre}</div>
-            </div>
-        `;
+        // SEGUNDO (Desempate): Por historial (El que tenga el puntaje de recencia más BAJO va primero)
+        // Menor puntaje = Hace más tiempo que no lava
+        return a.ultimaVezVisto - b.ultimaVezVisto;
     });
 
-    // Calcular "A quién le toca" (Lógica: Quien tenga menos lavados y no haya llegado a 5)
-    // Convertimos a array: [{nombre: 'Juan', cant: 2}, ...]
-    let candidatos = Object.keys(conteoPorPersona).map(key => {
-        return { nombre: key, cantidad: conteoPorPersona[key] };
-    });
-
-    // Filtramos los que ya terminaron (5 lavados)
-    candidatos = candidatos.filter(c => c.cantidad < 5);
-
-    // Ordenamos de menor a mayor cantidad
-    candidatos.sort((a, b) => a.cantidad - b.cantidad);
-
+    // --- D. Mostrar Resultado ---
     const banner = document.querySelector('#banner-turno span');
+    const bannerContainer = document.getElementById('banner-turno');
+    
     if (candidatos.length > 0) {
-        // Si hay empate en el mínimo, mostramos al primero (o podrías mostrar 'Cualquiera')
-        banner.innerText = candidatos[0].nombre;
+        const elegido = candidatos[0];
+        let razon = "";
         
-        // Poner color al texto según quién sea
-        if(candidatos[0].nombre === 'Juan') banner.style.color = 'var(--color-juan)';
-        else if(candidatos[0].nombre === 'Delfina') banner.style.color = 'var(--color-delfina)';
+        // Determinar razón para mostrar (opcional, para depurar o info)
+        if (candidatos.length > 1 && candidatos[1].cantidadActual === elegido.cantidadActual) {
+            razon = "(Por historial)";
+        }
+        
+        banner.innerText = `${elegido.nombre} ${razon}`;
+        
+        // Asignar color al texto
+        if(elegido.nombre === 'Juan') banner.style.color = 'var(--color-juan)';
+        else if(elegido.nombre === 'Delfina') banner.style.color = 'var(--color-delfina)';
         else banner.style.color = 'var(--color-felicitas)';
+        
     } else {
         banner.innerText = "¡Ronda Completa!";
         banner.style.color = '#00E676';
