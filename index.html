@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>Anotador de Lavados</title>
+    <title>Lavados Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-borderless/borderless.css">
     <link rel="stylesheet" href="style.css"/>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -14,81 +17,75 @@
         <div class="spinner"></div>
     </div>
 
-    <div class="header">
-    <div class="logo-container">
-        <div class="logo-bg">
-            <i class="ph-fill ph-sparkle"></i>
-        </div>
+<header class="header-compact">
+    <div class="brand">
+        <i class="ph-fill ph-sparkle"></i>
+        <span>Lavados Tracker</span>
     </div>
-    <h1>Lavados Tracker</h1>
-    <p class="subtitle">Gestiona tu ronda fácilmente</p>
-</div>
+</header>
     
-    <div class="dashboard-panel">
-    
-    <div class="progreso-container">
-        <div class="progreso-info">
-            <span>Progreso Ronda <span id="lbl-ronda-actual">1</span></span>
-            <span id="lbl-porcentaje">0%</span>
+    <main class="main-content">
+        <!-- DASHBOARD DE PROGRESO -->
+        <section class="dashboard-panel">
+            <div class="progreso-container">
+                <div class="progreso-info">
+                    <span>Progreso Ronda <strong id="lbl-ronda-actual">1</strong></span>
+                    <span id="lbl-porcentaje">0%</span>
+                </div>
+                <div class="barra-fondo">
+                    <div id="barra-progreso" class="barra-relleno" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="stats-personas" id="stats-container"></div>
+
+            <div class="turno-banner" id="banner-turno">
+                <i class="ph-fill ph-hand-pointing"></i>
+                <div class="turno-texto">Le toca a: <span>Nadie</span></div>
+            </div>
+        </section>
+
+        <!-- AGREGADO RÁPIDO -->
+        <div class="seccion-titulo">Agregar Rápido</div>
+        <div class="botones-nombres">
+            <button id="btn-juan" class="boton-nombre nombre-juan">
+                <i class="ph-bold ph-plus"></i> Juan
+            </button>
+            <button id="btn-delfina" class="boton-nombre nombre-delfina">
+                <i class="ph-bold ph-plus"></i> Delfi
+            </button>
+            <button id="btn-felicitas" class="boton-nombre nombre-felicitas">
+                <i class="ph-bold ph-plus"></i> Feli
+            </button>
         </div>
-        <div class="barra-fondo">
-            <div id="barra-progreso" class="barra-relleno" style="width: 0%"></div>
+
+        <!-- CONTROLES DE RONDA -->
+        <div class="navegacion-ronda">
+            <button id="btn-prev-ronda" class="nav-arrow" title="Ronda anterior">
+                <i class="ph-bold ph-caret-left"></i>
+            </button>
+            <div class="ronda-selector-wrapper">
+                <select id="selector-ronda" class="selector-moderno"></select>
+            </div>
+            <button id="btn-next-ronda" class="nav-arrow" title="Ronda siguiente">
+                <i class="ph-bold ph-caret-right"></i>
+            </button>
         </div>
-    </div>
 
-    <div class="stats-personas" id="stats-container">
+        <div class="acciones-extra">
+            <button id="estadisticas-btn" class="btn-secundario">
+                <i class="ph ph-chart-bar"></i> <span id="lbl-btn-estadisticas">Ver Estadísticas</span>
+            </button>
+            <button id="reiniciar-ronda-btn" class="btn-danger">
+                <i class="ph ph-trash"></i> Reiniciar Ronda
+            </button>
         </div>
 
-    <div class="turno-banner" id="banner-turno">
-        <i class="ph-fill ph-hand-pointing"></i> Le toca a: <span>Nadie</span>
-    </div>
-</div>
-
-<div class="navegacion-ronda">
-    <button id="btn-prev-ronda" class="nav-arrow"><i class="ph-bold ph-caret-left"></i></button>
-    <div class="ronda-selector-wrapper">
-        <select id="selector-ronda" class="selector-moderno">
-            </select>
-    </div>
-    <button id="btn-next-ronda" class="nav-arrow"><i class="ph-bold ph-caret-right"></i></button>
-</div>
-
-<div class="botones-nombres">
-    <button id="btn-juan" class="boton-nombre nombre-juan" data-nombre="Juan">
-        <i class="ph-bold ph-plus"></i> Juan
-    </button>
-    <button id="btn-delfina" class="boton-nombre nombre-delfina" data-nombre="Delfina">
-        <i class="ph-bold ph-plus"></i> Delfi
-    </button>
-    <button id="btn-felicitas" class="boton-nombre nombre-felicitas" data-nombre="Felicitas">
-        <i class="ph-bold ph-plus"></i> Feli
-    </button>
-</div>
-
-<div class="acciones-extra">
-    <button id="estadisticas-btn" class="btn-secundario">Historial</button>
-    <button id="reiniciar-ronda-btn" class="btn-danger">Reiniciar</button>
-</div>
-
-<div id="lavados-container"></div>
-    
-   <div class="botones-nombres">
-    <button id="btn-juan" class="boton-nombre nombre-juan" data-nombre="Juan">
-        <i class="ph-bold ph-user"></i> Juan
-    </button>
-    <button id="btn-delfina" class="boton-nombre nombre-delfina" data-nombre="Delfina">
-        <i class="ph-bold ph-user"></i> Delfina
-    </button>
-    <button id="btn-felicitas" class="boton-nombre nombre-felicitas" data-nombre="Felicitas">
-        <i class="ph-bold ph-user"></i> Felicitas
-    </button>
-</div>
-    
-    <div id="lavados-container"></div>
+        <!-- CONTENEDOR PRINCIPAL DE TARJETAS -->
+        <div id="lavados-container"></div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
     <script type="module" src="script.js"></script>
-
 </body>
 </html>

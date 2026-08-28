@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js";
-import { getFirestore, collection, doc, getDocs, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBfchCQdkV9a6UW1COpuAf3gLHM29JjrZM",
@@ -22,117 +22,90 @@ let maxRondas = 5;
 const container = document.getElementById("lavados-container");
 const estadisticasBtn = document.getElementById("estadisticas-btn");
 const selectorRonda = document.getElementById("selector-ronda");
-const loader = document.getElementById("loader"); // Referencia al loader
+const loader = document.getElementById("loader");
+const lblBtnEstadisticas = document.getElementById("lbl-btn-estadisticas");
+
 let rondaActual = 1;
 let datosGuardados = {};
 let mostrandoEstadisticas = false;
 
-// --- FUNCIONES DE UTILIDAD UI ---
 const Toast = Swal.mixin({
     toast: true,
     position: 'top-end',
     showConfirmButton: false,
-    timer: 3000,
-    timerProgressBar: true,
-    didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer)
-        toast.addEventListener('mouseleave', Swal.resumeTimer)
-    }
+    timer: 2500,
+    timerProgressBar: true
 });
 
 function toggleLoader(show) {
-    if(show) loader.classList.remove('hidden');
-    else loader.classList.add('hidden');
-}
-
-function obtenerClaseNombre(nombre) {
-    const clases = { "Juan": "nombre-juan", "Delfina": "nombre-delfina", "Felicitas": "nombre-felicitas" };
-    return clases[nombre] || "";
+    if (loader) loader.classList.toggle('hidden', !show);
 }
 
 function obtenerClaveFirebase(ronda, posicion) { return `ronda${ronda}_lugar${posicion}`; }
-function obtenerClaveDatos(ronda, posicion) { return `ronda${ronda}_lugar${posicion}`; }
 
 function verificarRondaCompleta(ronda) {
     for (let i = 0; i < TOTAL_LUGARES; i++) {
-        if (!datosGuardados[obtenerClaveDatos(ronda, i)]) return false;
+        const item = datosGuardados[obtenerClaveFirebase(ronda, i)];
+        if (!item || !item.nombre) return false;
     }
     return true;
 }
 
-function obtenerRondasDisponibles() {
-    const rondas = [];
-    for (let i = 1; i <= maxRondas; i++) rondas.push(i);
-    return rondas;
-}
-
-function actualizarSelectorRonda() {
-    const rondaSeleccionada = selectorRonda.value;
-    selectorRonda.innerHTML = '';
-    const rondasDisponibles = obtenerRondasDisponibles();
-    const rondasActivas = rondasDisponibles.filter(ronda => !verificarRondaCompleta(ronda));
-    
-    if (rondasActivas.length === 0) rondasActivas.push(maxRondas);
-    
-    rondasActivas.forEach(ronda => {
-        const option = document.createElement('option');
-        option.value = ronda;
-        option.textContent = `Ronda ${ronda}`;
-        selectorRonda.appendChild(option);
+function obtenerConteoRonda(ronda) {
+    const conteo = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
+    Object.values(datosGuardados).forEach(d => {
+        if (d.ronda === ronda && d.nombre && conteo[d.nombre] !== undefined) {
+            conteo[d.nombre]++;
+        }
     });
-    
-    if (rondaSeleccionada && rondasActivas.includes(parseInt(rondaSeleccionada))) {
-        selectorRonda.value = rondaSeleccionada;
-    } else {
-        rondaActual = rondasActivas[0];
-        selectorRonda.value = rondasActivas[0];
-    }
-}
-
-function verificarYAgregarNuevaRonda() {
-    if (verificarRondaCompleta(rondaActual)) {
-        const siguienteRonda = maxRondas + 1;
-        maxRondas = siguienteRonda;
-        actualizarSelectorRonda();
-        rondaActual = siguienteRonda;
-        selectorRonda.value = siguienteRonda;
-        
-        Swal.fire({
-            title: '¡Ronda Completada!',
-            text: `Se ha creado automáticamente la Ronda ${rondaActual}`,
-            icon: 'success',
-            timer: 2000,
-            showConfirmButton: false
-        });
-        return true;
-    }
-    return false;
+    return conteo;
 }
 
 function encontrarProximoLugarLibre(ronda) {
     for (let i = 0; i < TOTAL_LUGARES; i++) {
-        const clave = obtenerClaveDatos(ronda, i);
+        const clave = obtenerClaveFirebase(ronda, i);
         if (!datosGuardados[clave] || !datosGuardados[clave].nombre) return i;
     }
     return -1;
 }
 
-// --- LÓGICA DE AGREGAR RÁPIDO ---
+let cargaInicial = true;
+
+function obtenerRondaActivaInicial() {
+    // Busca la primera ronda que no esté completa
+    for (let r = 1; r <= maxRondas; r++) {
+        if (!verificarRondaCompleta(r)) return r;
+    }
+    // Si todas están completas, va a la última
+    return maxRondas;
+}
+
+function actualizarSelectorRonda() {
+    selectorRonda.innerHTML = '';
+    for (let i = 1; i <= maxRondas; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `Ronda ${i}${verificarRondaCompleta(i) ? ' (Completa)' : ''}`;
+        selectorRonda.appendChild(option);
+    }
+    
+    // Si es la primera carga, seleccionamos la ronda activa en curso
+    if (cargaInicial) {
+        rondaActual = obtenerRondaActivaInicial();
+        cargaInicial = false;
+    }
+    
+    selectorRonda.value = rondaActual;
+}
+
+// --- ACCIONES DE AGREGAR / EDITAR / BORRAR ---
 async function agregarLavadoRapido(nombre) {
     toggleLoader(true);
     const fechaHoy = new Date().toISOString().split('T')[0];
     const horaActual = new Date().getHours();
     const turno = horaActual < 17 ? "mediodia" : "noche";
-    
-    const snapshot = await getDocs(collection(db, "lavados"));
-    const conteoRondaActual = {};
-    snapshot.forEach(docSnap => {
-        const dato = docSnap.data();
-        if (dato.nombre && dato.ronda === rondaActual) {
-            conteoRondaActual[dato.nombre] = (conteoRondaActual[dato.nombre] || 0) + 1;
-        }
-    });
 
+    const conteoRondaActual = obtenerConteoRonda(rondaActual);
     let lugarLibre = encontrarProximoLugarLibre(rondaActual);
     let rondaParaUsar = rondaActual;
     let mensajeExtra = "";
@@ -140,129 +113,105 @@ async function agregarLavadoRapido(nombre) {
     if (conteoRondaActual[nombre] >= MAX_OCURRENCIAS) {
         rondaParaUsar = rondaActual + 1;
         lugarLibre = encontrarProximoLugarLibre(rondaParaUsar);
-        mensajeExtra = " (Límite alcanzado en ronda actual)";
+        mensajeExtra = " (Pasa a la siguiente ronda)";
         if (rondaParaUsar > maxRondas) { maxRondas = rondaParaUsar; actualizarSelectorRonda(); }
     } else if (lugarLibre === -1) {
         rondaParaUsar = rondaActual + 1;
         lugarLibre = encontrarProximoLugarLibre(rondaParaUsar);
-        mensajeExtra = " (Ronda actual llena)";
+        mensajeExtra = " (Ronda llena, pasa a la siguiente)";
         if (rondaParaUsar > maxRondas) { maxRondas = rondaParaUsar; actualizarSelectorRonda(); }
     }
-    
+
     if (lugarLibre === -1) {
         toggleLoader(false);
-        Swal.fire('Error', 'No hay lugares libres en las próximas rondas', 'error');
+        Swal.fire('Atención', 'No hay lugares disponibles en la ronda actual ni en la siguiente.', 'info');
         return;
     }
-    
-    await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaParaUsar, lugarLibre)), {
-        ronda: rondaParaUsar, posicion: lugarLibre, nombre: nombre, fecha: fechaHoy, turno: turno
-    });
-    
-    if (rondaParaUsar !== rondaActual) {
-        rondaActual = rondaParaUsar;
-        selectorRonda.value = rondaParaUsar;
-    }
 
-    toggleLoader(false);
-    Toast.fire({
-        icon: 'success',
-        title: `${nombre} agregado${mensajeExtra}`
-    });
-    
-    // No hace falta llamar a cargarDatos, el onSnapshot lo hará
-}
-
-async function reiniciarRonda(ronda) {
-    const result = await Swal.fire({
-        title: `¿Reiniciar Ronda ${ronda}?`,
-        text: "Se borrarán todos los datos de esta ronda. No se puede deshacer.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sí, borrar todo',
-        cancelButtonText: 'Cancelar'
-    });
-
-    if (result.isConfirmed) {
-        toggleLoader(true);
-        try {
-            for (let i = 0; i < TOTAL_LUGARES; i++) {
-                const claveFirebase = obtenerClaveFirebase(ronda, i);
-                const clave = obtenerClaveDatos(ronda, i);
-                await setDoc(doc(db, "lavados", claveFirebase), {
-                    ronda: ronda, posicion: i, nombre: "", fecha: "", turno: ""
-                });
-                delete datosGuardados[clave];
-            }
-            toggleLoader(false);
-            Swal.fire('¡Reiniciado!', `La Ronda ${ronda} está limpia.`, 'success');
-        } catch (error) {
-            toggleLoader(false);
-            Swal.fire('Error', 'Hubo un problema al reiniciar.', 'error');
-        }
-    }
-}
-
-function calcularEstadisticas() {
-    const estadisticas = {};
-    for (let ronda = 1; ronda <= maxRondas; ronda++) {
-        estadisticas[ronda] = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
-    }
-    Object.keys(datosGuardados).forEach(clave => {
-        const data = datosGuardados[clave];
-        if (data && data.nombre && data.ronda) {
-            if (!estadisticas[data.ronda]) estadisticas[data.ronda] = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
-            estadisticas[data.ronda][data.nombre]++;
-        }
-    });
-    return estadisticas;
-}
-
-function renderEstadisticas() {
-    container.innerHTML = "";
-    container.className = "estadisticas-container";
-    const estadisticas = calcularEstadisticas();
-    
-    for (let ronda = 1; ronda <= maxRondas; ronda++) {
-        const rondaDiv = document.createElement("div");
-        const esCompleta = verificarRondaCompleta(ronda);
-        rondaDiv.className = esCompleta ? "estadisticas-ronda ronda-finalizada" : "estadisticas-ronda";
-        let html = `<h3>Ronda ${ronda}${esCompleta ? ' - FINALIZADA' : ''}</h3>`;
-        OPCIONES.forEach(nombre => {
-            const cantidad = estadisticas[ronda] ? estadisticas[ronda][nombre] : 0;
-            html += `<div class="estadistica-persona estadistica-${nombre.toLowerCase()}"><span>${nombre}</span><span>${cantidad} lavado${cantidad !== 1 ? 's' : ''}</span></div>`;
+    try {
+        await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaParaUsar, lugarLibre)), {
+            ronda: rondaParaUsar, posicion: lugarLibre, nombre: nombre, fecha: fechaHoy, turno: turno
         });
-        rondaDiv.innerHTML = html;
-        container.appendChild(rondaDiv);
+        if (rondaParaUsar !== rondaActual) {
+            rondaActual = rondaParaUsar;
+            selectorRonda.value = rondaParaUsar;
+        }
+        Toast.fire({ icon: 'success', title: `${nombre} registrado${mensajeExtra}` });
+    } catch (err) {
+        Swal.fire('Error', 'No se pudo guardar el registro.', 'error');
+    } finally {
+        toggleLoader(false);
     }
 }
 
-// --- EDICIÓN MODERNA CON SWEETALERT ---
+async function abrirModalNuevoLavado(posicion) {
+    const fechaHoy = new Date().toISOString().split('T')[0];
+    const turnoDefault = new Date().getHours() < 17 ? "mediodia" : "noche";
+
+    const { value: formValues } = await Swal.fire({
+        title: `Lugar ${posicion + 1} - Ronda ${rondaActual}`,
+        html: `
+            <select id="swal-nombre" class="swal2-input">
+                <option value="" disabled selected>Seleccionar persona...</option>
+                ${OPCIONES.map(n => `<option value="${n}">${n}</option>`).join('')}
+            </select>
+            <input type="date" id="swal-fecha" class="swal2-input" value="${fechaHoy}">
+            <select id="swal-turno" class="swal2-input">
+                <option value="mediodia" ${turnoDefault === 'mediodia' ? 'selected' : ''}>☀️ Mediodía</option>
+                <option value="noche" ${turnoDefault === 'noche' ? 'selected' : ''}>🌙 Noche</option>
+            </select>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+            const nombre = document.getElementById('swal-nombre').value;
+            const fecha = document.getElementById('swal-fecha').value;
+            const turno = document.getElementById('swal-turno').value;
+            if (!nombre || !fecha || !turno) {
+                Swal.showValidationMessage('Todos los campos son obligatorios');
+                return false;
+            }
+            return { nombre, fecha, turno };
+        }
+    });
+
+    if (formValues) {
+        const conteo = obtenerConteoRonda(rondaActual);
+        if ((conteo[formValues.nombre] || 0) >= MAX_OCURRENCIAS) {
+            return Swal.fire('Límite alcanzado', `${formValues.nombre} ya tiene los 5 lavados en esta ronda.`, 'warning');
+        }
+
+        toggleLoader(true);
+        await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaActual, posicion)), {
+            ronda: rondaActual, posicion, ...formValues
+        });
+        toggleLoader(false);
+        Toast.fire({ icon: 'success', title: 'Lavado asignado' });
+    }
+}
+
 async function editarLavado(posicion) {
-    const clave = obtenerClaveDatos(rondaActual, posicion);
+    const clave = obtenerClaveFirebase(rondaActual, posicion);
     const data = datosGuardados[clave];
     if (!data || !data.nombre) return;
 
-    // Crear HTML del formulario para el popup
-    const formHtml = `
-        <select id="swal-nombre" class="swal2-input">
-            ${OPCIONES.map(n => `<option value="${n}" ${n === data.nombre ? 'selected' : ''}>${n}</option>`).join('')}
-        </select>
-        <input type="date" id="swal-fecha" class="swal2-input" value="${data.fecha}">
-        <select id="swal-turno" class="swal2-input">
-            <option value="mediodia" ${data.turno === 'mediodia' ? 'selected' : ''}>Mediodía</option>
-            <option value="noche" ${data.turno === 'noche' ? 'selected' : ''}>Noche</option>
-        </select>
-    `;
-
     const { value: formValues } = await Swal.fire({
-        title: 'Editar Lavado',
-        html: formHtml,
+        title: 'Editar Registro',
+        html: `
+            <select id="swal-nombre" class="swal2-input">
+                ${OPCIONES.map(n => `<option value="${n}" ${n === data.nombre ? 'selected' : ''}>${n}</option>`).join('')}
+            </select>
+            <input type="date" id="swal-fecha" class="swal2-input" value="${data.fecha}">
+            <select id="swal-turno" class="swal2-input">
+                <option value="mediodia" ${data.turno === 'mediodia' ? 'selected' : ''}>☀️ Mediodía</option>
+                <option value="noche" ${data.turno === 'noche' ? 'selected' : ''}>🌙 Noche</option>
+            </select>
+        `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: 'Guardar Cambios',
+        confirmButtonText: 'Actualizar',
         cancelButtonText: 'Cancelar',
         preConfirm: () => {
             return {
@@ -274,169 +223,246 @@ async function editarLavado(posicion) {
     });
 
     if (formValues) {
-        toggleLoader(true);
-        // Validar límite (excluyendo el actual si no cambia el nombre)
         if (formValues.nombre !== data.nombre) {
-            const snapshot = await getDocs(collection(db, "lavados"));
-            const conteo = {};
-            snapshot.forEach(docSnap => {
-                const d = docSnap.data();
-                if(d.nombre && d.ronda === rondaActual) conteo[d.nombre] = (conteo[d.nombre] || 0) + 1;
-            });
+            const conteo = obtenerConteoRonda(rondaActual);
             if ((conteo[formValues.nombre] || 0) >= MAX_OCURRENCIAS) {
-                toggleLoader(false);
-                Swal.fire('Límite alcanzado', `Ya se usó "${formValues.nombre}" 5 veces en esta ronda.`, 'warning');
-                return;
+                return Swal.fire('Límite alcanzado', `${formValues.nombre} ya tiene 5 lavados en esta ronda.`, 'warning');
             }
         }
 
-        await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaActual, posicion)), {
-            ronda: rondaActual, posicion: posicion, 
-            nombre: formValues.nombre, fecha: formValues.fecha, turno: formValues.turno
+        toggleLoader(true);
+        await setDoc(doc(db, "lavados", clave), {
+            ronda: rondaActual, posicion, ...formValues
         });
         toggleLoader(false);
-        Toast.fire({ icon: 'success', title: 'Lavado actualizado' });
+        Toast.fire({ icon: 'success', title: 'Registro actualizado' });
     }
 }
 
 async function borrarLavado(posicion) {
-    const clave = obtenerClaveDatos(rondaActual, posicion);
+    const clave = obtenerClaveFirebase(rondaActual, posicion);
     const data = datosGuardados[clave];
-    
+
     const result = await Swal.fire({
-        title: '¿Borrar este lavado?',
-        text: `${data.nombre} - ${data.fecha}`,
+        title: '¿Liberar este lugar?',
+        text: `${data.nombre} (${data.fecha})`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#d33',
-        confirmButtonText: 'Sí, borrar'
+        confirmButtonColor: '#ff4b4b',
+        confirmButtonText: 'Sí, borrar',
+        cancelButtonText: 'Cancelar'
     });
 
     if (result.isConfirmed) {
         toggleLoader(true);
-        await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaActual, posicion)), {
-            ronda: rondaActual, posicion: posicion, nombre: "", fecha: "", turno: ""
+        await setDoc(doc(db, "lavados", clave), {
+            ronda: rondaActual, posicion, nombre: "", fecha: "", turno: ""
         });
         toggleLoader(false);
-        Toast.fire({ icon: 'success', title: 'Lavado borrado' });
+        Toast.fire({ icon: 'success', title: 'Lugar liberado' });
     }
 }
 
+async function reiniciarRonda(ronda) {
+    const result = await Swal.fire({
+        title: `¿Reiniciar Ronda ${ronda}?`,
+        text: "Se borrarán todos los lavados de esta ronda. Esta acción es irreversible.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ff4b4b',
+        confirmButtonText: 'Sí, reiniciar',
+        cancelButtonText: 'Cancelar'
+    });
+
+    if (result.isConfirmed) {
+        toggleLoader(true);
+        try {
+            const batchPromises = [];
+            for (let i = 0; i < TOTAL_LUGARES; i++) {
+                const clave = obtenerClaveFirebase(ronda, i);
+                batchPromises.push(setDoc(doc(db, "lavados", clave), {
+                    ronda: ronda, posicion: i, nombre: "", fecha: "", turno: ""
+                }));
+            }
+            await Promise.all(batchPromises);
+            Swal.fire('¡Listo!', `La Ronda ${ronda} ha sido reiniciada.`, 'success');
+        } catch (error) {
+            Swal.fire('Error', 'Hubo un problema al reiniciar la ronda.', 'error');
+        } finally {
+            toggleLoader(false);
+        }
+    }
+}
+
+// --- RENDERIZADO Y DASHBOARD ---
 function renderTodosLosLavados() {
     container.innerHTML = "";
-    container.className = "vista-todas"; 
-    
+    container.className = "vista-todas";
+
     for (let i = 0; i < TOTAL_LUGARES; i++) {
-        const clave = obtenerClaveDatos(rondaActual, i);
+        const clave = obtenerClaveFirebase(rondaActual, i);
         const data = datosGuardados[clave] || {};
         const div = document.createElement("div");
-        
+
         if (data.nombre) {
-            const claseColor = obtenerClaseNombre(data.nombre);
-            div.className = `select-box collapsed ${claseColor}`;
+            const personaClass = `is-${data.nombre.toLowerCase()}`;
+            const turnoIcono = data.turno === 'mediodia' ? '☀️ Mediodía' : '🌙 Noche';
+            div.className = `card-lavado ${personaClass}`;
             div.innerHTML = `
-                <label>Ronda ${rondaActual} - Lugar ${i + 1} <span class="expand-indicator">▼</span></label>
-                <div class="estado-resumen">${data.nombre}</div>
-                <div class="info-completa">
-                    <p><strong>${data.nombre}</strong></p>
-                    <p>${data.fecha}</p>
-                    <p>${data.turno}</p>
-                    <div class="botones-accion">
-                        <button class="editar-btn" data-pos="${i}">Editar</button>
-                        <button class="borrar-btn" data-pos="${i}">Borrar</button>
+                <div class="card-header">
+                    <span>#${i + 1}</span>
+                    <span class="badge-turno">${turnoIcono}</span>
+                </div>
+                <div class="card-body">
+                    <div class="card-nombre">${data.nombre}</div>
+                    <div class="card-meta">
+                        <i class="ph ph-calendar-blank"></i> ${data.fecha || 'Sin fecha'}
                     </div>
-                </div>`;
+                </div>
+                <div class="card-acciones">
+                    <button class="btn-card-accion editar-btn" data-pos="${i}">Editar</button>
+                    <button class="btn-card-accion borrar borrar-btn" data-pos="${i}">Borrar</button>
+                </div>
+            `;
         } else {
-            div.className = "select-box collapsed";
+            div.className = "card-lavado is-empty";
             div.innerHTML = `
-                <label>Ronda ${rondaActual} - Lugar ${i + 1} <span class="expand-indicator">▼</span></label>
-                <div class="estado-resumen">LIBRE</div>
-                <div class="formulario-contenido">
-                    <select class="nombre-select" data-pos="${i}">
-                        <option value="">Elegir nombre...</option>
-                        ${OPCIONES.map(o => `<option value="${o}">${o}</option>`).join("")}
-                    </select>
-                    <div class="fecha-container">
-                        <input type="date" class="fecha-input" data-pos="${i}" />
-                        <button type="button" class="hoy-btn" onclick="setHoy(this)">Hoy</button>
-                    </div>
-                    <select class="turno-select" data-pos="${i}">
-                        <option value="">Turno...</option>
-                        <option value="mediodia">Mediodía</option>
-                        <option value="noche">Noche</option>
-                    </select>
-                    <button class="guardar-btn" data-pos="${i}">Guardar</button>
-                </div>`;
+                <div class="empty-placeholder" data-pos="${i}">
+                    <i class="ph ph-plus-circle"></i>
+                    <span>Lugar #${i + 1}</span>
+                </div>
+            `;
+            div.addEventListener('click', () => abrirModalNuevoLavado(i));
         }
-        
-        div.addEventListener('click', function(e) {
-            if (['SELECT', 'INPUT', 'BUTTON'].includes(e.target.tagName)) return;
-            this.classList.toggle('collapsed');
-        });
         container.appendChild(div);
     }
     actualizarDashboard();
 }
 
-container.addEventListener("click", async function(e) {
-    if (e.target.classList.contains("guardar-btn")) {
-        const div = e.target.closest(".select-box");
-        const nombre = div.querySelector(".nombre-select").value;
-        const fecha = div.querySelector(".fecha-input").value;
-        const turno = div.querySelector(".turno-select").value;
-        const posicion = parseInt(e.target.getAttribute("data-pos"));
+function renderEstadisticas() {
+    container.innerHTML = "";
+    container.className = "estadisticas-container";
 
-        if (!nombre || !fecha || !turno) {
-            return Swal.fire('Faltan datos', 'Por favor completá todos los campos.', 'info');
-        }
-        
-        toggleLoader(true);
-        // Validar conteo
-        const snapshot = await getDocs(collection(db, "lavados"));
-        const conteo = {};
-        snapshot.forEach(docSnap => {
-            const d = docSnap.data();
-            if(d.ronda === rondaActual) conteo[d.nombre] = (conteo[d.nombre] || 0) + 1;
+    for (let r = 1; r <= maxRondas; r++) {
+        const rondaDiv = document.createElement("div");
+        const conteo = obtenerConteoRonda(r);
+        const esCompleta = verificarRondaCompleta(r);
+
+        rondaDiv.className = `estadisticas-ronda ${esCompleta ? 'ronda-finalizada' : ''}`;
+        let html = `<h3>Ronda ${r} ${esCompleta ? '<span style="color:#00E676; font-size:0.8rem;">✓ Completa</span>' : ''}</h3>`;
+
+        OPCIONES.forEach(nombre => {
+            const cant = conteo[nombre] || 0;
+            html += `
+                <div class="estadistica-persona is-${nombre.toLowerCase()}">
+                    <span>${nombre}</span>
+                    <span>${cant} / ${MAX_OCURRENCIAS}</span>
+                </div>
+            `;
         });
-
-        if (conteo[nombre] >= MAX_OCURRENCIAS) {
-            toggleLoader(false);
-            return Swal.fire('Límite alcanzado', `Ya se usó "${nombre}" 5 veces.`, 'warning');
-        }
-
-        await setDoc(doc(db, "lavados", obtenerClaveFirebase(rondaActual, posicion)), {
-            ronda: rondaActual, posicion, nombre, fecha, turno
-        });
-        toggleLoader(false);
-        verificarYAgregarNuevaRonda();
+        rondaDiv.innerHTML = html;
+        container.appendChild(rondaDiv);
     }
-    
-    if (e.target.classList.contains("editar-btn")) await editarLavado(parseInt(e.target.getAttribute("data-pos")));
-    if (e.target.classList.contains("borrar-btn")) await borrarLavado(parseInt(e.target.getAttribute("data-pos")));
+}
+
+function actualizarDashboard() {
+    let ocupados = 0;
+    const conteoRondaActual = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
+    const ultimoLavadoGlobal = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
+
+    Object.values(datosGuardados).forEach(dato => {
+        if (dato.nombre) {
+            const puntaje = (dato.ronda * 100) + dato.posicion;
+            if (puntaje > (ultimoLavadoGlobal[dato.nombre] || 0)) {
+                ultimoLavadoGlobal[dato.nombre] = puntaje;
+            }
+            if (dato.ronda === rondaActual) {
+                ocupados++;
+                if (conteoRondaActual[dato.nombre] !== undefined) {
+                    conteoRondaActual[dato.nombre]++;
+                }
+            }
+        }
+    });
+
+    // Barra
+    const porcentaje = Math.round((ocupados / TOTAL_LUGARES) * 100);
+    const barra = document.getElementById('barra-progreso');
+    if (barra) barra.style.width = `${porcentaje}%`;
+
+    const lblPorcentaje = document.getElementById('lbl-porcentaje');
+    if (lblPorcentaje) lblPorcentaje.innerText = `${porcentaje}%`;
+
+    const lblRonda = document.getElementById('lbl-ronda-actual');
+    if (lblRonda) lblRonda.innerText = rondaActual;
+
+    // Avatars
+    const containerStats = document.getElementById('stats-container');
+    if (containerStats) {
+        containerStats.innerHTML = '';
+        OPCIONES.forEach(nombre => {
+            const cantidad = conteoRondaActual[nombre] || 0;
+            const completo = cantidad >= MAX_OCURRENCIAS;
+            containerStats.innerHTML += `
+                <div class="stat-item is-${nombre.toLowerCase()} ${completo ? 'completed' : ''}">
+                    <div class="stat-circle">${completo ? '✓' : cantidad}</div>
+                    <div class="stat-name">${nombre}</div>
+                </div>
+            `;
+        });
+    }
+
+    // Le toca a
+    let candidatos = OPCIONES.map(nombre => ({
+        nombre,
+        cantidadActual: conteoRondaActual[nombre] || 0,
+        ultimaVez: ultimoLavadoGlobal[nombre] || 0
+    })).filter(c => c.cantidadActual < MAX_OCURRENCIAS);
+
+    candidatos.sort((a, b) => {
+        if (a.cantidadActual !== b.cantidadActual) return a.cantidadActual - b.cantidadActual;
+        return a.ultimaVez - b.ultimaVez;
+    });
+
+    const bannerTexto = document.querySelector('#banner-turno span');
+    if (bannerTexto) {
+        if (candidatos.length > 0) {
+            bannerTexto.innerText = candidatos[0].nombre;
+            bannerTexto.style.color = `var(--color-${candidatos[0].nombre.toLowerCase()})`;
+        } else {
+            bannerTexto.innerText = "¡Ronda Completada!";
+            bannerTexto.style.color = "#00E676";
+        }
+    }
+}
+
+// --- LISTENERS ---
+container.addEventListener("click", (e) => {
+    const editBtn = e.target.closest(".editar-btn");
+    const delBtn = e.target.closest(".borrar-btn");
+    if (editBtn) editarLavado(parseInt(editBtn.getAttribute("data-pos")));
+    if (delBtn) borrarLavado(parseInt(delBtn.getAttribute("data-pos")));
 });
 
 document.getElementById("btn-juan").addEventListener("click", () => agregarLavadoRapido("Juan"));
 document.getElementById("btn-delfina").addEventListener("click", () => agregarLavadoRapido("Delfina"));
 document.getElementById("btn-felicitas").addEventListener("click", () => agregarLavadoRapido("Felicitas"));
 
-estadisticasBtn.addEventListener("click", function() {
+estadisticasBtn.addEventListener("click", () => {
     mostrandoEstadisticas = !mostrandoEstadisticas;
-    estadisticasBtn.textContent = mostrandoEstadisticas ? "Volver" : "Ver Estadísticas";
+    lblBtnEstadisticas.textContent = mostrandoEstadisticas ? "Ver Tablero" : "Ver Estadísticas";
     mostrandoEstadisticas ? renderEstadisticas() : renderTodosLosLavados();
 });
 
-selectorRonda.addEventListener("change", function() {
-    rondaActual = parseInt(this.value);
+selectorRonda.addEventListener("change", (e) => {
+    rondaActual = parseInt(e.target.value);
     mostrandoEstadisticas ? renderEstadisticas() : renderTodosLosLavados();
 });
 
-document.getElementById("reiniciar-ronda-btn").addEventListener("click", () => reiniciarRonda(rondaActual));
-// Navegación con flechas
 document.getElementById("btn-prev-ronda").addEventListener("click", () => {
     if (rondaActual > 1) {
         rondaActual--;
-        selectorRonda.value = rondaActual;
-        // Si estamos en estadísticas, recargamos estadísticas, si no, lavados
+        actualizarSelectorRonda();
         mostrandoEstadisticas ? renderEstadisticas() : renderTodosLosLavados();
     }
 });
@@ -444,155 +470,35 @@ document.getElementById("btn-prev-ronda").addEventListener("click", () => {
 document.getElementById("btn-next-ronda").addEventListener("click", () => {
     if (rondaActual < maxRondas) {
         rondaActual++;
-        selectorRonda.value = rondaActual;
+        actualizarSelectorRonda();
         mostrandoEstadisticas ? renderEstadisticas() : renderTodosLosLavados();
     } else {
-        // Opcional: Crear nueva ronda si intentan avanzar más allá
-        Swal.fire({
-            title: '¿Crear nueva ronda?',
-            text: `Estás en la última ronda (${rondaActual}). ¿Quieres avanzar a la ${rondaActual + 1}?`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Sí, crear'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                maxRondas++;
-                rondaActual++;
-                actualizarSelectorRonda(); // Asegúrate de llamar a esto para actualizar el <select>
-                selectorRonda.value = rondaActual;
-                renderTodosLosLavados();
-            }
-        });
+        maxRondas++;
+        rondaActual = maxRondas;
+        actualizarSelectorRonda();
+        mostrandoEstadisticas ? renderEstadisticas() : renderTodosLosLavados();
+        Toast.fire({ icon: 'info', title: `Ronda ${rondaActual} iniciada` });
     }
 });
-function actualizarDashboard() {
-    // 1. Calcular ocupación y conteos de la ronda ACTUAL
-    let ocupados = 0;
-    let conteoRondaActual = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
-    
-    // 2. Calcular el "Último Lavado Global" (Historial de TODAS las rondas)
-    // Usaremos un puntaje: (Ronda * 100) + Posición.
-    // Cuanto más alto el puntaje, más reciente fue el lavado.
-    let ultimoLavadoGlobal = { "Juan": 0, "Delfina": 0, "Felicitas": 0 };
 
-    // Analizamos TODOS los datos guardados (historial completo)
-    Object.values(datosGuardados).forEach(dato => {
-        if (dato.nombre) {
-            // Actualizar historial global
-            const puntajeRecencia = (dato.ronda * 100) + dato.posicion;
-            if (puntajeRecencia > ultimoLavadoGlobal[dato.nombre]) {
-                ultimoLavadoGlobal[dato.nombre] = puntajeRecencia;
-            }
+document.getElementById("reiniciar-ronda-btn").addEventListener("click", () => reiniciarRonda(rondaActual));
 
-            // Actualizar conteo solo si es de esta ronda
-            if (dato.ronda === rondaActual) {
-                ocupados++;
-                conteoRondaActual[dato.nombre]++;
-            }
-        }
-    });
-
-    // --- A. Actualizar Barra de Progreso ---
-    const porcentaje = Math.round((ocupados / TOTAL_LUGARES) * 100);
-    const barra = document.getElementById('barra-progreso');
-    if(barra) barra.style.width = `${porcentaje}%`;
-    
-    const lblPorcentaje = document.getElementById('lbl-porcentaje');
-    if(lblPorcentaje) lblPorcentaje.innerText = `${porcentaje}%`;
-    
-    const lblRonda = document.getElementById('lbl-ronda-actual');
-    if(lblRonda) lblRonda.innerText = rondaActual;
-
-    // --- B. Actualizar Avatars (Círculos) ---
-    const containerStats = document.getElementById('stats-container');
-    if (containerStats) {
-        containerStats.innerHTML = '';
-        Object.keys(conteoRondaActual).forEach(nombre => {
-            const cantidad = conteoRondaActual[nombre];
-            const esCompleto = cantidad >= 5;
-            const claseColor = `is-${nombre.toLowerCase()}`;
-            const claseCompleto = esCompleto ? 'completed' : '';
-            
-            containerStats.innerHTML += `
-                <div class="stat-item ${claseColor} ${claseCompleto}">
-                    <div class="stat-circle">${cantidad}</div>
-                    <div class="stat-name">${nombre}</div>
-                </div>
-            `;
-        });
-    }
-
-    // --- C. Lógica de Decisión (A quién le toca) ---
-    
-    // 1. Crear lista de candidatos
-    let candidatos = Object.keys(conteoRondaActual).map(nombre => {
-        return { 
-            nombre: nombre, 
-            cantidadActual: conteoRondaActual[nombre],
-            ultimaVezVisto: ultimoLavadoGlobal[nombre]
-        };
-    });
-
-    // 2. Filtrar los que ya terminaron (5 lavados)
-    candidatos = candidatos.filter(c => c.cantidadActual < 5);
-
-    // 3. ORDENAR (La parte mágica)
-    candidatos.sort((a, b) => {
-        // PRIMERO: Por cantidad en esta ronda (Menos es mejor)
-        if (a.cantidadActual !== b.cantidadActual) {
-            return a.cantidadActual - b.cantidadActual;
-        }
-        
-        // SEGUNDO (Desempate): Por historial (El que tenga el puntaje de recencia más BAJO va primero)
-        // Menor puntaje = Hace más tiempo que no lava
-        return a.ultimaVezVisto - b.ultimaVezVisto;
-    });
-
-    // --- D. Mostrar Resultado ---
-    const banner = document.querySelector('#banner-turno span');
-    const bannerContainer = document.getElementById('banner-turno');
-    
-    if (candidatos.length > 0) {
-        const elegido = candidatos[0];
-        let razon = "";
-        
-        // Determinar razón para mostrar (opcional, para depurar o info)
-        if (candidatos.length > 1 && candidatos[1].cantidadActual === elegido.cantidadActual) {
-            razon = "(Por historial)";
-        }
-        
-        banner.innerText = `${elegido.nombre} ${razon}`;
-        
-        // Asignar color al texto
-        if(elegido.nombre === 'Juan') banner.style.color = 'var(--color-juan)';
-        else if(elegido.nombre === 'Delfina') banner.style.color = 'var(--color-delfina)';
-        else banner.style.color = 'var(--color-felicitas)';
-        
-    } else {
-        banner.innerText = "¡Ronda Completa!";
-        banner.style.color = '#00E676';
-    }
-}
-// LISTENER EN TIEMPO REAL
+// --- TIEMPO REAL ---
+toggleLoader(true);
 onSnapshot(collection(db, "lavados"), (snapshot) => {
     datosGuardados = {};
     snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        const clave = obtenerClaveDatos(data.ronda || 1, data.posicion);
+        const clave = obtenerClaveFirebase(data.ronda || 1, data.posicion);
         datosGuardados[clave] = data;
         if (data.ronda && data.ronda > maxRondas) maxRondas = data.ronda;
     });
-    
+
     actualizarSelectorRonda();
-    if(mostrandoEstadisticas) renderEstadisticas();
+    if (mostrandoEstadisticas) renderEstadisticas();
     else renderTodosLosLavados();
-    toggleLoader(false); // Ocultar loader al terminar carga inicial
+    toggleLoader(false);
+}, (error) => {
+    toggleLoader(false);
+    console.error("Error al escuchar cambios:", error);
 });
-
-window.setHoy = function(boton) {
-    const fechaInput = boton.parentElement.querySelector('.fecha-input');
-    fechaInput.value = new Date().toISOString().split('T')[0];
-}
-
-// Inicialización
-toggleLoader(true);
